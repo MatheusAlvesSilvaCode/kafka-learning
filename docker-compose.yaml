@@ -1,28 +1,28 @@
-version: '3'
+version: '3' # Escolhendo a versão.
 
-services:
+services: # 
   zookeeper:
-    image: wurstmeister/zookeeper
-    container_name: zookeeper
+    image: wurstmeister/zookeeper # Usa a imagem do Wurstmeister que já vem com o Zookeeper instalado.
+    container_name: zookeeper # Nome do container, zookeeper
     ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    # Removi as configurações extras do ZOO_MY_ID e ZOO_SERVERS (não necessárias para single node)
+      - "2181:2181" # Mantendo na porta 2181, padrão.
+    environment: # Ambiente
+      ZOOKEEPER_CLIENT_PORT: 2181 # Mantém o zookeeper clinete na port 2181
+      ZOOKEEPER_TICK_TIME: 2000 # Tempo interno para o kafka sincrinizar
+    
 
-  kafka:
-    image: wurstmeister/kafka
-    container_name: kafka
+  kafka: # Cria o container Kafka
+    image: wurstmeister/kafka # Pega a imagem Wustmeister que já possui o Kafka instalado.
+    container_name: kafka # Nome do container
     ports:
-      - "9092:9092"
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092"
+      - "9092:9092" # utilizando as portas padrão do Kafka
+    environment: # Ambiente
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181" # Dizando ao Kafka onde o  Zookeeper está.
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092" # Dif ao Kafka onde ele deve se apresentar, no local host  9092
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092" # Diz ao Kafka para escutar conexões de qualquer IP, dentro do container.
       KAFKA_CREATE_TOPICS: "teste:1:1"  # Cria um tópico 'teste' automaticamente
-      KAFKA_BROKER_ID: 1
+      KAFKA_BROKER_ID: 1 # Identifica o único broken Kafka.
     depends_on:
-      - zookeeper
+      - zookeeper # Inicia o Kafka somente depois queo zookeeper iniciar
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Necessário para wurstmeister/kafka
+      - /var/run/docker.sock:/var/run/docker.sock  # Garante que o Kafka só inicie depois do zookeper
