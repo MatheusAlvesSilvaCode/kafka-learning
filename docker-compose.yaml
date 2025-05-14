@@ -1,28 +1,36 @@
-version: '3' # Escolhendo a versão.
-
-services: # 
-  zookeeper:
-    image: wurstmeister/zookeeper # Usa a imagem do Wurstmeister que já vem com o Zookeeper instalado.
-    container_name: zookeeper # Nome do container, zookeeper
-    ports:
-      - "2181:2181" # Mantendo na porta 2181, padrão.
-    environment: # Ambiente
-      ZOOKEEPER_CLIENT_PORT: 2181 # Mantém o zookeeper clinete na port 2181
-      ZOOKEEPER_TICK_TIME: 2000 # Tempo interno para o kafka sincrinizar
-    
-
-  kafka: # Cria o container Kafka
-    image: wurstmeister/kafka # Pega a imagem Wustmeister que já possui o Kafka instalado.
-    container_name: kafka # Nome do container
-    ports:
-      - "9092:9092" # utilizando as portas padrão do Kafka
-    environment: # Ambiente
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181" # Dizando ao Kafka onde o  Zookeeper está.
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092" # Dif ao Kafka onde ele deve se apresentar, no local host  9092
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092" # Diz ao Kafka para escutar conexões de qualquer IP, dentro do container.
-      KAFKA_CREATE_TOPICS: "teste:1:1"  # Cria um tópico 'teste' automaticamente
-      KAFKA_BROKER_ID: 1 # Identifica o único broken Kafka.
-    depends_on:
-      - zookeeper # Inicia o Kafka somente depois queo zookeeper iniciar
+version: '3.8'
+services:
+  kafka:
+    image: 'bitnami/kafka:latest'
+    container_name: kafka
+    expose:
+      - "29092"  #  broker kafka PLAINTEXT acessivel aos outros contentores docker      
+    ports:       #  broker kafka PLAINTEXT_HOST acessivel no localhost
+      - "9092:9092"
+    restart: always
+    environment:
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,PLAINTEXT_HOST://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LOG_RETENTION_BYTES=104857600  # 100 MiB em bytes
+    healthcheck:
+      test: kafka-topics.sh --list -bootstrap-server localhost:9092 || exit -1
+      start_period: 25s                     # durante 25s não conta o número de tentativas falhadas
+      interval: 10s
+      timeout: 5s
+      retries: 3 # Número máximo de tentativas falhadas depois de 10s
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Garante que o Kafka só inicie depois do zookeper
+      - kafka-data:/bitnami/kafka
+volumes:
+  minio-data:
+   driver: local
+  kafka-data:
+   driver: local
+  etcd-volume:
+   driver: local

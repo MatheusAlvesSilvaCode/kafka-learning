@@ -1,1 +1,4 @@
 venv/
+.kafkatest/
+venvlinux/
+python-microservices/pizza-service/
