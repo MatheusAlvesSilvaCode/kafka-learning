@@ -1,47 +1,44 @@
-from configparser import ConfigParser
-from confluent_kafka import Producer, Consumer
+from kafka import KafkaProducer, KafkaConsumer
 import json
 import random
 
-config_parser = ConfigParser(interpolation=None)
-config_file = open('config.properties', 'r')
-config_parser.read_file(config_file)
-client_config = dict(config_parser['kafka_client'])
+# Criar Producer Kafka
+producer = KafkaProducer(
+    bootstrap_servers='localhost:9092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
-meats_producer = Producer(client_config)
+# Criar Consumer Kafka
+consumer = KafkaConsumer(
+    'pizza-with-cheese',
+    bootstrap_servers='localhost:9092',
+    group_id='carne-service',
+    value_deserializer=lambda v: json.loads(v.decode('utf-8')),
+    auto_offset_reset='earliest'
+)
 
-cheese_consumer = Consumer(client_config)
-cheese_consumer.subscribe(['pizza-with-cheese'])
-
-
-def start_service():
-    while True:
-        msg = cheese_consumer.poll(0.1)
-        if msg is None:
-            pass
-        elif msg.error():
-            pass
-        else:
-            pizza = json.loads(msg.value())
-            add_meats(msg.key(), pizza)
-
-
+# Função para adicionar carnes
 def add_meats(order_id, pizza):
     pizza['meats'] = calc_meats()
-    meats_producer.produce('pizza-with-meats', key=order_id, value=json.dumps(pizza))
+    print(f" 🍖 Pedido {order_id} recebeu carnes: {pizza['meats']}")
+    producer.send('pizza-with-meats', key=order_id.encode('utf-8'), value=pizza)
+    producer.flush()
 
-
+# Função auxiliar para sortear carnes
 def calc_meats():
     i = random.randint(0, 4)
-    meats = ['pepperoni', 'sausage', 'ham', 'anchovies', 'salami', 'bacon', 'pepperoni', 'sausage', 'ham', 'anchovies', 'salami', 'bacon']
-    selection = []
+    meats = ['pepperoni', 'sausage', 'ham', 'anchovies', 'salami', 'bacon']
     if i == 0:
         return 'none'
-    else:
-        for n in range(i):
-            selection.append(meats[random.randint(0, 11)])
-    return ' & '.join(set(selection))
+    return ' & '.join(random.sample(meats, i))
 
+# Loop principal de consumo e envio
+def start_service():
+    print("🧠 Serviço de carnes rodando...")
+    for msg in consumer:
+        pizza = msg.value
+        order_id = msg.key.decode('utf-8') if msg.key else 'sem-id'
+        add_meats(order_id, pizza)
 
 if __name__ == '__main__':
     start_service()

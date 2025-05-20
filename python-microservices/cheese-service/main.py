@@ -1,41 +1,36 @@
-from configparser import ConfigParser
-from confluent_kafka import Producer, Consumer
+from kafka import KafkaProducer, KafkaConsumer
 import json
 import random
 
-config_parser = ConfigParser(interpolation=None)
-config_file = open('config.properties', 'r')
-config_parser.read_file(config_file)
-client_config = dict(config_parser['kafka_client'])
+producer = KafkaProducer(
+    bootstrap_servers='localhost:9092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
-cheese_producer = Producer(client_config)
-
-sauce_consumer = Consumer(client_config)
-sauce_consumer.subscribe(['pizza-with-sauce'])
-
-
-def start_service():
-    while True:
-        msg = sauce_consumer.poll(0.1)
-        if msg is None:
-            pass
-        elif msg.error():
-            pass
-        else:
-            pizza = json.loads(msg.value())
-            add_cheese(msg.key(), pizza)
-
+consumer = KafkaConsumer(
+    'pizza-with-sauce',
+    bootstrap_servers='localhost:9092',
+    group_id='queijo-service',
+    value_deserializer=lambda v: json.loads(v.decode('utf-8')),
+    auto_offset_reset='earliest'
+)
 
 def add_cheese(order_id, pizza):
     pizza['cheese'] = calc_cheese()
-    cheese_producer.produce('pizza-with-cheese', key=order_id, value=json.dumps(pizza))
-
+    print(f"🧀 Pedido {order_id} recebeu queijo: {pizza['cheese']}")
+    producer.send('pizza-with-cheese', key=order_id.encode('utf-8'), value=pizza)
+    producer.flush()
 
 def calc_cheese():
-    i = random.randint(0, 6)
-    cheeses = ['extra', 'none', 'three cheese', 'goat cheese', 'extra', 'three cheese', 'goat cheese']
-    return cheeses[i]
+    cheeses = ['extra', 'none', 'three cheese', 'goat cheese']
+    return random.choice(cheeses)
 
+def start_service():
+    print("🔁 Serviço de queijo ativo... (esperando mensagens)")
+    for msg in consumer:
+        pizza = msg.value
+        order_id = msg.key.decode('utf-8') if msg.key else 'sem-id'
+        add_cheese(order_id, pizza)
 
 if __name__ == '__main__':
     start_service()

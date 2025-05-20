@@ -1,18 +1,33 @@
-from flask import Flask
-from threading import Thread
-import report_service
+# app.py (no cheese-reporter)
+
+from flask import Flask, jsonify
+from kafka import KafkaProducer
+import json
+import uuid
 
 app = Flask(__name__)
 
+producer = KafkaProducer(
+    bootstrap_servers='localhost:9092',
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
-@app.route('/report', methods=['GET'])
-def generate_report():
-    return report_service.generate_report()
+@app.route('/order/<int:qtd>', methods=['POST'])
+def fazer_pedido(qtd):
+    for _ in range(qtd):
+        pizza = {
+            "order_id": str(uuid.uuid4()),
+            "sauce": "molho de tomate",
+            "cheese": "",
+            "meats": "",
+            "veggies": ""
+        }
+        print(f"🍕 Pedido criado: {pizza['order_id']}")
+        producer.send("pizza-with-sauce", key=pizza['order_id'].encode('utf-8'), value=pizza)
+        producer.flush()
 
+    return jsonify({"status": f"{qtd} pedidos enviados!"})
+
+# 🚨 Faltava isso:
 if __name__ == '__main__':
-    app.run()
-
-@app.before_first_request
-def launch_consumer():
-    t = Thread(target=report_service.start_consumer)
-    t.start()
+    app.run(debug=True)

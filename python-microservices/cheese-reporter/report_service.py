@@ -1,38 +1,41 @@
 import json
+from kafka import KafkaConsumer
+from kafka.errors import KafkaError
 
-from pizza import Pizza, PizzaOrder
-from configparser import ConfigParser
-from confluent_kafka import Consumer
-
-config_parser = ConfigParser(interpolation=None)
-config_file = open('config.properties', 'r')
-config_parser.read_file(config_file)
-producer_config = dict(config_parser['kafka_client'])
-consumer_config = dict(config_parser['kafka_client'])
-consumer_config.update(config_parser['consumer'])
+# Configurações (substitua conforme seu config.properties)
+KAFKA_BOOTSTRAP_SERVERS = 'localhost:9092'  # ou seu servidor Kafka
+CONSUMER_GROUP = 'cheese-report-group'      # substitua pelo seu grupo
+AUTO_OFFSET_RESET = 'earliest'             # ou 'latest' conforme necessidade
 
 cheeses = {}
 cheese_topic = 'pizza-with-cheese'
 
 def start_consumer():
-    cheese_consumer = Consumer(consumer_config)
-    cheese_consumer.subscribe([cheese_topic])
-    while True:
-        event = cheese_consumer.poll(1.0)
-        if event is None:
-            pass
-        elif event.error():
-            print(f'Bummer - {event.error()}')
-        else:
-            pizza = json.loads(event.value())
-            add_cheese_count(pizza['cheese'])
-            
+    cheese_consumer = KafkaConsumer (
+        cheese_topic,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id=CONSUMER_GROUP,
+        auto_offset_reset=AUTO_OFFSET_RESET,
+        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
+    )
+    
+    try:
+        for message in cheese_consumer:  # KafkaConsumer é um iterável
+            try:
+                pizza = message.value
+                add_cheese_count(pizza['cheese'])
+            except Exception as e:
+                print(f'Erro ao processar mensagem: {e}')
+    except KeyboardInterrupt:
+        print("Interrompendo consumidor...")
+    finally:
+        cheese_consumer.close()
+
 def add_cheese_count(cheese):
-    if cheese in cheeses:
-        cheeses[cheese] = cheeses[cheese] + 1
-    else:
-        cheeses[cheese] = 1
+    cheeses[cheese] = cheeses.get(cheese, 0) + 1
 
 def generate_report():
-    return json.dumps(cheeses, indent = 4)     
+    return json.dumps(cheeses, indent=4)
 
+if __name__ == '__main__':
+    start_consumer()
